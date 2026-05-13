@@ -1,0 +1,118 @@
+@page "/Login"
+@using System.ComponentModel.DataAnnotations
+@using BlazorAppSeuz.IServices
+@inject IUserService UserService
+@inject NavigationManager Navigation
+@layout EmptyLayout
+
+<MudContainer Class="d-flex justify-center align-center min-vh-100" MaxWidth="MaxWidth.Small">
+    <MudPaper Outlined="true" Class="pa-6" Style="width:100%; max-width:380px;">
+
+        <!-- Title -->
+        <MudText Typo="Typo.h5" Class="mb-1">Sign in</MudText>
+        <MudText Typo="Typo.body2" Class="mb-6" Color="Color.Primary">
+            Introduce tus datos para continuar
+        </MudText>
+
+        <!-- Form -->
+
+        <EditForm FormName="LoginForm" Model="@loginModel" OnValidSubmit="DoLogin">
+            <DataAnnotationsValidator />
+
+            <MudTextField @bind-Value="loginModel.Username"
+                          Label="Nombre de usuario"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          For="@(() => loginModel.Username)"
+                          Class="mb-4" />
+
+            <MudTextField @bind-Value="loginModel.Password"
+                          Label="Password"
+                          Variant="Variant.Outlined"
+                          InputType="@PasswordInput"
+                          FullWidth="true"
+                          For="@(() => loginModel.Password)"
+                          Class="mb-4" 
+                          Adornment="Adornment.End" 
+                          AdornmentIcon="@PasswordInputIcon" 
+                          OnAdornmentClick="ButtonTestclick" 
+                          AdornmentAriaLabel="Show Password" />
+
+            
+            <MudText Color="Color.Error" Typo="Typo.caption" Class="mb-4">
+                @errorMessage
+            </MudText>
+            
+
+            <MudButton type="submit" Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       ButtonType="ButtonType.Submit"
+                       Class="mt-2">
+                Sign in
+            </MudButton>
+
+             
+        </EditForm>
+
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private LoginModel loginModel = new();
+    private string? errorMessage;
+
+    bool isShow;
+    InputType PasswordInput = InputType.Password;
+    string PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+
+    public class LoginModel
+    {
+        [Required(ErrorMessage = "Nombre de usuario requerido")]
+        public string? Username { get; set; }
+
+        [Required(ErrorMessage = "Password requerido")]
+        public string? Password { get; set; }
+    }
+    
+    private async Task DoLogin()
+    {
+        errorMessage = null;
+          
+        try
+        {
+            var user = await UserService.LoginAsync(loginModel.Username!, loginModel.Password!);
+
+            if (user == null)
+            {
+                errorMessage = "Usuario o contraseña inválidosD";
+                return;
+            }
+
+            // Login exitoso
+            Navigation.NavigateTo("/", true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+
+      //  Navigation.NavigateTo("/postlogin?Token=" + response.Token, true);
+    }
+    
+    void ButtonTestclick()
+    {
+        if (isShow)
+        {
+            isShow = false;
+            PasswordInputIcon = Icons.Material.Filled.VisibilityOff;
+            PasswordInput = InputType.Password;
+        }
+        else
+        {
+            isShow = true;
+            PasswordInputIcon = Icons.Material.Filled.Visibility;
+            PasswordInput = InputType.Text;
+        }
+    }
+}

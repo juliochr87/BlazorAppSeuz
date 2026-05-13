@@ -1,0 +1,150 @@
+﻿@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Components.Authorization
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject ProtectedLocalStorage localStorage
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inherits LayoutComponentBase
+
+<!-- Dark mode aplicado globalmente -->
+<MudThemeProvider IsDarkMode="@_isDarkMode" />
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Default">
+        
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" />
+
+        <MudText Typo="Typo.h6">Seuz Web App</MudText>
+
+        <MudSpacer />
+         
+        <MudIconButton Color="Color.Inherit" 
+                       Icon="@(_isDarkMode? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       OnClick="ToggleDarkMode" />
+          
+        <MudIconButton Color="Color.Inherit" 
+                       Icon="@Icons.Material.Filled.Notifications"/>
+
+        <MudMenu>
+            <ActivatorContent>
+                <MudAvatar Color="Color.Secondary">@initials</MudAvatar>
+            </ActivatorContent>
+            <ChildContent>
+                <MudMenuItem Icon="@Icons.Material.Filled.VerifiedUser" 
+                             Label="Profile" 
+                             Href="/profile" />
+
+                <MudDivider />
+
+                <MudMenuItem Href="/"
+                             ForceLoad
+                             Icon="@Icons.Material.TwoTone.Logout"
+                             IconColor="Color.Primary"
+                             Label="Sign Out"
+                             OnClick="SignOut" />
+            </ChildContent>
+        </MudMenu>
+         
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="@_open"
+               ClipMode="DrawerClipMode.Docked"
+               Elevation="1"
+               Color="Color.Surface">
+        <LeftMenu />
+
+    </MudDrawer>
+
+   
+    <MudMainContent>
+        <MudContainer Class="mt-4" Fixed="true">
+             
+            @Body
+        </MudContainer>
+    </MudMainContent>
+
+</MudLayout>
+
+@code {
+    private string initials = "?";
+
+    private bool _open = false;
+    private bool _isDarkMode = false;
+    private bool _loaded = false; // para ejecutar solo una vez
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+
+        if (firstRender && !_loaded)
+        {
+
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity != null && user.Identity.IsAuthenticated)
+            {
+                var givenName = user.Identity.Name ?? ""; // o ClaimTypes.GivenName si lo tienes
+                var surnameClaim = user.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname");
+                var surname = surnameClaim?.Value ?? "";
+
+                initials = "";
+
+                if (!string.IsNullOrWhiteSpace(givenName))
+                    initials += givenName[0];
+
+                if (!string.IsNullOrWhiteSpace(surname))
+                    initials += surname[0];
+
+                initials = initials.ToUpper(); // siempre mayúsculas
+            }
+
+            _loaded = true;
+
+            var result = await localStorage.GetAsync<bool>("isDarkMode");
+            if (result.Success)
+            {
+                _isDarkMode = result.Value;
+                StateHasChanged(); // fuerza actualización visual
+            }
+
+            var resultOpen = await localStorage.GetAsync<bool>("isOpen");
+            if (resultOpen.Success)
+            {
+                _open = resultOpen.Value;
+                StateHasChanged(); // fuerza actualización visual
+            }
+        }
+    }
+
+    private async void ToggleDrawer()
+    {
+        _open = !_open;
+        await localStorage.SetAsync("isOpen", _open);
+        StateHasChanged(); // asegura que los iconos se actualicen
+    }
+
+    // Este método cambia el modo oscuro y fuerza re-render
+    private async void ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        await localStorage.SetAsync("isDarkMode", _isDarkMode);
+        StateHasChanged(); // asegura que los iconos se actualicen
+    }
+
+    private async void SignOut()
+    {
+         
+        // Redirigir al login
+        NavigationManager.NavigateTo("/signout", forceLoad: true);
+    }
+
+}

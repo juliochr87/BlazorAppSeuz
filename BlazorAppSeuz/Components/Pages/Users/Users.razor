@@ -1,0 +1,260 @@
+﻿@page "/users"
+@using System.Net.Http.Json
+@using BlazorAppSeuz.IServices
+@using BlazorAppSeuz.Models
+@inject IUserService UserService
+@using BlazorAppSeuz.Services
+@inject ISnackbar Snackbar
+ 
+  
+<MudTable Outlined="true" 
+                  @ref="table"
+                  EditMode="DataGridEditMode.Row"
+                  Items="@users"
+                  Dense="false"
+                  Hover="true"
+                  Bordered="false"
+                  Striped="false"
+                  CanCancelEdit="true"
+                  ReadOnly="false"
+                  EditTrigger="TableEditTrigger.EditButton"
+                  EditButtonPosition="TableEditButtonPosition.End"
+                  ApplyButtonPosition="TableApplyButtonPosition.End"
+                  IsEditRowSwitchingBlocked="true"
+                  Filter="new Func<Tusuarios, bool>(FilterFunc)"
+                  RowEditCommit="ItemHasBeenCommitted" 
+                  RowEditPreview="BackupItem"
+                  RowEditCancel="ResetItemToOriginalValues"
+                  @bind-SelectedItem="selectedUser">
+
+
+            <ToolBarContent>
+                 
+                <MudText Typo="Typo.h6">Maestro de usuarios</MudText>
+
+         
+                <MudSpacer />
+
+                <MudTextField @bind-Value="searchString"
+                              Placeholder="Buscar"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              IconSize="Size.Medium"
+                              Class="mt-0" />
+      
+            </ToolBarContent>
+
+            <HeaderContent>
+                <MudTh>ID Usuario</MudTh>
+                <MudTh>Nombre</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Password</MudTh>
+                <MudTh>Movil</MudTh>
+               
+            </HeaderContent>
+             
+            <RowTemplate>
+
+                <MudTd DataLabel="ID Usuario">@context.UsuavIdusuario</MudTd>
+                <MudTd DataLabel="Nombre">@context.UsuavNombre</MudTd>
+                <MudTd DataLabel="Email">@context.UsuavEmail</MudTd>
+                <MudTd DataLabel="Password">@Constants.passwordxxx</MudTd>
+                <MudTd DataLabel="Movil">@context.UsuavMovil</MudTd>
+                 
+            </RowTemplate>
+
+            <RowEditingTemplate>
+
+                <MudTd DataLabel="Id Usuario">
+                    <MudTextField @bind-Value="context.UsuavIdusuario" Required="true" Disabled="true"  />
+                </MudTd>
+
+                <MudTd DataLabel="Nombre">
+                    <MudTextField @bind-Value="context.UsuavNombre" Required="true" />
+                </MudTd>
+ 
+                <MudTd DataLabel="Email">
+                    <MudTextField @bind-Value="context.UsuavEmail"
+                                  Required="false"
+                                  InputType="InputType.Email" />
+                </MudTd>
+
+                <MudTd DataLabel="Password">
+                    <MudTextField @bind-Value="context.UsuavPassword"
+                                  Required="true"
+                                  Placeholder="********"
+                                  InputType="InputType.Password"  />
+                </MudTd>
+
+                <MudTd DataLabel="Movil">
+                    <MudTextField @bind-Value="context.UsuavMovil" />
+                </MudTd>
+ 
+            </RowEditingTemplate>
+            
+            <PagerContent>
+
+                <MudTablePager>
+           
+                </MudTablePager>
+          
+            </PagerContent>
+ 
+
+        </MudTable>
+
+        
+
+@code {
+
+    private MudTable<Tusuarios> table;
+    private bool isEditing = false;
+    private bool _showDeletedUsers;
+
+    private bool showDeletedUsers
+    {
+        get => _showDeletedUsers;
+        set
+        {
+            if (_showDeletedUsers != value)
+            {
+                _showDeletedUsers = value;
+                OnShowDeletedChanged();
+            }
+        }
+    }
+
+    private async Task OnShowDeletedChanged()
+    {
+        // ejemplo: recargar datos
+        await LoadUsers();
+    }
+
+    private string searchString = "";
+    public string passwordX = Constants.passwordxxx;
+    private Tusuarios? selectedUser;
+
+    private Tusuarios elementBeforeEdit;
+
+
+    private List<Tusuarios> users = new();
+
+    private async Task LoadUsers()
+    {
+        users = await UserService.GetAllAsync();
+ 
+        StateHasChanged();
+    }
+     
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error cargando usuarios: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task AddNewUser()
+    {
+    }
+
+    private async Task DeleteItem(Tusuarios user)
+    {
+    }
+
+    private async void BackupItem(object element)
+    {
+        isEditing = true;
+       
+        elementBeforeEdit = new()
+        {
+           
+            UsuavPassword = Constants.passwordxxx,
+          
+        };
+        
+        StateHasChanged();
+    }
+
+    private async void ResetItemToOriginalValues(object element)
+    {
+        ((Tusuarios)element).UsuavPassword = Constants.passwordxxx;
+        isEditing = false;
+        await LoadUsers();
+        StateHasChanged();
+    }
+
+    private async void ItemHasBeenCommitted(object userObj)
+    {
+
+        try
+        {
+            
+            var user = (Tusuarios)userObj;
+
+            if (user.UsuavPassword == passwordX)
+            {
+                user.UsuavPassword = null;  
+            }
+
+            if (user.UsuavId.Equals(0))
+            {
+                // ES NUEVO → CREATE
+                //await UserService.CreateAsync(user);
+                Snackbar.Add("User created", Severity.Success);
+
+                isEditing = false;
+               
+            }
+            else
+            {
+                // EXISTENTE → UPDATE
+                await UserService.UpdateAsync(user);
+                Snackbar.Add("Usuario actualizado", Severity.Success);
+            }
+
+            isEditing = false;
+            await LoadUsers();
+            StateHasChanged();
+
+        }
+        catch
+        {
+            Snackbar.Add("Error updating the user", Severity.Error);
+           
+        }
+    }
+
+    private async Task UpdateItem(Tusuarios user)
+    {
+        try
+        {
+           // await UserService.UpdateAsync(user.Id, user);
+            await LoadUsers();
+            Snackbar.Add("User updated", Severity.Success);
+           
+
+        }
+        catch
+        {
+            Snackbar.Add("Error updating the user", Severity.Error);
+        }
+    }
+
+    private bool FilterFunc(Tusuarios user)
+    {
+        return new[]
+            {
+                user.UsuavIdusuario,
+                user.UsuavNombre,
+                user.UsuavEmail,
+                user.UsuavMovil
+            }
+            .Any(x => (x ?? "").Contains(searchString, StringComparison.OrdinalIgnoreCase));
+    }
+
+}
