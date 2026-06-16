@@ -1,0 +1,40 @@
+﻿@page "/mapaClientes"
+@using System.Globalization
+@using System.Net.Http.Json
+@using BlazorAppSeuz.IServices
+@using BlazorAppSeuz.Services
+@using BlazorAppZeuz.Models.Zeuz
+@inject IClienteService ClienteService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+  
+<div id="map" style="height: 650px; width: 100%;"></div>
+
+
+@code {
+ 
+    private List<Tclientesb> clientes = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        clientes = await ClienteService.GetAllAsync(); // ajusta a tu método real
+        
+        await JS.InvokeVoidAsync("mapaClientes.init", clientes);
+    }
+ 
+    private async Task AbrirMapa(decimal? latitud, decimal? longitud)
+    {
+        if (latitud == null || longitud == null)
+        {
+            Snackbar.Add("Cliente sin coordenadas", Severity.Warning);
+            return;
+        }
+        var lat = Convert.ToDecimal(latitud).ToString(CultureInfo.InvariantCulture);
+        var lng = Convert.ToDecimal(longitud).ToString(CultureInfo.InvariantCulture);
+        var url = $"https://www.google.com/maps?q={lat},{lng}";
+
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+
+}

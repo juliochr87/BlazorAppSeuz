@@ -1,0 +1,204 @@
+﻿@page "/distribucionAutomatica"
+@using BlazorAppSeuz.IServices
+@inject INotasEntregaService NotasEntregaService
+@using BlazorAppZeuz.Models.Zeuz
+
+<MudGrid AlignItems="AlignItems.Center">
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudDateRangePicker @bind-DateRange="_dateRange"
+                            Margin="Margin.Dense"
+                            Variant="Variant.Outlined"
+                            Label="Rango de fechas (Emisión)" />
+    </MudItem>
+
+    <MudItem xs="12" sm="2" Class="d-flex align-center">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Search"
+                   OnClick="Buscar">
+            Buscar
+        </MudButton>
+    </MudItem>
+
+</MudGrid>
+<br/>
+<MudTable Outlined="true" 
+                  @ref="table"
+                  T="TnotasentEnc"
+                  Items="@notasEntrega"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="false"
+                  Striped="false"
+                  CanCancelEdit="true"
+                  ReadOnly="false"
+                  Loading="@loading"
+                  LoadingIndicator="true"
+                  IsEditRowSwitchingBlocked="true"
+                  Filter="new Func<TnotasentEnc, bool>(FilterFunc)"
+                  OnRowClick="OnRowSelected"
+                  @bind-SelectedItem="selectedNota">
+    
+            <ToolBarContent>
+                 
+                <MudText Typo="Typo.h6">Notas de entrega</MudText>
+
+                <MudSpacer />
+
+                <MudTextField @bind-Value="searchString"
+                              Placeholder="Buscar"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              IconSize="Size.Medium"
+                              Class="mt-0" />
+      
+            </ToolBarContent>
+
+            <HeaderContent>
+                <MudTh>Documento</MudTh>
+                <MudTh>RIF</MudTh>
+                <MudTh>Razón Social</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Fecha Emisión</MudTh>
+                <MudTh>Comentarios</MudTh>
+               
+            </HeaderContent>
+             
+            <RowTemplate>
+
+                <MudTd DataLabel="Documento">@context.VenvNumedocu</MudTd>
+                <MudTd DataLabel="RIF">@context.VenvRif</MudTd>
+                <MudTd DataLabel="Razón Social">@context.VenvRazosoci</MudTd>
+                <MudTd DataLabel="Status">@context.VenvStatus</MudTd>
+                <MudTd DataLabel="Fecha Emisión">@context.VendEmision</MudTd>
+                <MudTd DataLabel="Comentarios">@context.VenvComentario</MudTd>
+                
+            </RowTemplate>
+
+            <PagerContent>
+
+                <MudTablePager>
+           
+                </MudTablePager>
+          
+            </PagerContent>
+ 
+</MudTable>
+
+@if (selectedNota != null)
+{
+    <MudPaper Class="pa-4 mt-4" Outlined="true">
+
+        <MudText Typo="Typo.h6">
+            Detalle de @selectedNota.VenvNumedocu
+        </MudText>
+
+        <MudDivider Class="my-2" />
+
+        <MudTable Items="@detalleNota"
+                  Dense="true"
+                  Hover="true"
+                  Loading="@loading2"
+                  LoadingIndicator="true"
+                  Bordered="true">
+
+            <HeaderContent>
+                <MudTh>Id artículo</MudTh>
+                <MudTh>Artículo</MudTh>
+                <MudTh>Cajas</MudTh>
+                <MudTh>Unidades</MudTh>
+                <MudTh>Status</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd>@context.VenrvIdarticulo</MudTd>
+                <MudTd>@context.VenrvDescart</MudTd>
+                <MudTd>@context.VenrnCajas</MudTd>
+                <MudTd>@context.VenrnUnidades</MudTd>
+                <MudTd>@context.VenrvStatus</MudTd>
+                
+            </RowTemplate>
+
+            <PagerContent>
+
+                <MudTablePager>
+           
+                </MudTablePager>
+          
+            </PagerContent>
+            
+        </MudTable>
+
+    </MudPaper>
+}
+        
+
+@code {
+
+    private DateRange _dateRange { get; set; }
+   
+    private MudTable<TnotasentEnc> table;
+    private bool loading = false;
+    private bool loading2 = false;
+    private string searchString = "";
+   
+    private TnotasentEnc? selectedNotasEntrega;
+ 
+    private List<TnotasentEnc> notasEntrega;
+ 
+    private TnotasentEnc? selectedNota;
+    private List<TnotasentReg> detalleNota;
+    
+    private async Task Buscar()
+    {
+        selectedNota = null;
+         
+        loading = true;
+
+        try
+        {
+            notasEntrega = await NotasEntregaService.GetNotasEntregaByDateRange(_dateRange);
+        }
+        finally
+        {
+            loading = false;
+        }
+ 
+        StateHasChanged();
+    }
+    
+    private async Task OnRowSelected(TableRowClickEventArgs<TnotasentEnc> args)
+    {
+        selectedNota = args.Item;
+        loading2 = true;
+        detalleNota = new List<TnotasentReg>();
+        try
+        {
+            detalleNota = await NotasEntregaService.GetDetalleByNota(selectedNota.VenvNumedocu);
+        }
+        finally
+        {
+            loading2 = false;
+        }
+       
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        
+    }
+  
+    private bool FilterFunc(TnotasentEnc notasEntrega)
+    {
+        return new[]
+            {
+                notasEntrega.VenvTipodocu,
+                notasEntrega.VenvRif,
+                notasEntrega.VenvRazosoci,
+                notasEntrega.VenvStatus,
+                notasEntrega.VenvComentario
+            }
+            .Any(x => (x ?? "").Contains(searchString, StringComparison.OrdinalIgnoreCase));
+    }
+
+}

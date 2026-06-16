@@ -1,14 +1,21 @@
 ﻿
 <MudPaper Elevation="0">
     <MudNavMenu Rounded="true" Margin="Margin.Dense" Color="Color.Primary" Class="pa-2">
-        <MudNavLink Href="/distribucion" Icon="@Icons.Material.Filled.CalendarMonth">Distribución</MudNavLink>
-      
+        <MudNavLink Href="/notasEntrega" Icon="@Icons.Material.Filled.ReceiptLong">Notas de entrega</MudNavLink>
+        <MudNavLink Href="/facturas" Icon="@Icons.Material.Filled.Receipt">Facturas</MudNavLink>
+        <MudNavGroup Title="Distribución" Icon="@Icons.Material.Filled.Hub" Expanded="true">
+            <MudNavLink Href="/distribucionManual" Icon="@Icons.Material.Filled.BackHand" Match="NavLinkMatch.Prefix">Manual</MudNavLink>
+            <MudNavLink Href="/distribucionAutomatica" Icon="@Icons.Material.Filled.SmartToy" Match="NavLinkMatch.Prefix">Automatica</MudNavLink>
+        </MudNavGroup>
+        <MudNavGroup Title="Clientes" Icon="@Icons.Material.Filled.Map" Expanded="true">
+            <MudNavLink Href="/clientes" Icon="@Icons.Material.Filled.Groups" Match="NavLinkMatch.Prefix">Listado de clientes</MudNavLink>
+            <MudNavLink Href="/mapaClientes" Icon="@Icons.Material.Filled.Map" Match="NavLinkMatch.Prefix">Mapa de clientes</MudNavLink>
+        </MudNavGroup>
         <MudNavGroup Title="Configuración" Icon="@Icons.Material.Filled.Settings" Expanded="true">
             <MudNavLink Href="/users" Icon="@Icons.Material.Filled.Person" Match="NavLinkMatch.Prefix">Usuarios</MudNavLink>
             <MudNavLink Href="/camiones" Icon="@Icons.Material.Filled.LocalShipping" Match="NavLinkMatch.Prefix">Camiones</MudNavLink>
- 
         </MudNavGroup>
-
+ 
     </MudNavMenu>
 </MudPaper>
 

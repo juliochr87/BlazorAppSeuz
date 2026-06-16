@@ -17,6 +17,8 @@ builder.Services.AddMudServices();
 
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICamionService,CamionService>();
+builder.Services.AddScoped<INotasEntregaService,NotasEntregaService>();
+builder.Services.AddScoped<IClienteService,ClienteService>();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(
