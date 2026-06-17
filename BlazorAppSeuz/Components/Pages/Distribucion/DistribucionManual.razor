@@ -1,15 +1,16 @@
 ﻿@page "/distribucionManual"
 @using BlazorAppSeuz.IServices
+@using BlazorAppZeuz.Dto.NotasEntrega
 @inject INotasEntregaService NotasEntregaService
 @using BlazorAppZeuz.Models.Zeuz
 
 <MudGrid AlignItems="AlignItems.Center">
 
     <MudItem xs="12" sm="6" md="3">
-        <MudDateRangePicker @bind-DateRange="_dateRange"
-                            Margin="Margin.Dense"
-                            Variant="Variant.Outlined"
-                            Label="Rango de fechas (Emisión)" />
+        <MudDatePicker @bind-Date="_selectedDate"
+                       Margin="Margin.Dense"
+                       Variant="Variant.Outlined"
+                       Label="Fecha de emisión" />
     </MudItem>
 
     <MudItem xs="12" sm="2" Class="d-flex align-center">
@@ -23,130 +24,156 @@
 
 </MudGrid>
 <br/>
-<MudTable Outlined="true" 
-                  @ref="table"
-                  T="TnotasentEnc"
-                  Items="@notasEntrega"
-                  Dense="true"
-                  Hover="true"
-                  Bordered="false"
-                  Striped="false"
-                  CanCancelEdit="true"
-                  ReadOnly="false"
-                  Loading="@loading"
-                  LoadingIndicator="true"
-                  IsEditRowSwitchingBlocked="true"
-                  Filter="new Func<TnotasentEnc, bool>(FilterFunc)"
-                  OnRowClick="OnRowSelected"
-                  @bind-SelectedItem="selectedNota">
-    
-            <ToolBarContent>
-                 
-                <MudText Typo="Typo.h6">Notas de entrega</MudText>
-
-                <MudSpacer />
-
-                <MudTextField @bind-Value="searchString"
-                              Placeholder="Buscar"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Search"
-                              IconSize="Size.Medium"
-                              Class="mt-0" />
-      
-            </ToolBarContent>
-
-            <HeaderContent>
-                <MudTh>Documento</MudTh>
-                <MudTh>RIF</MudTh>
-                <MudTh>Razón Social</MudTh>
-                <MudTh>Status</MudTh>
-                <MudTh>Fecha Emisión</MudTh>
-                <MudTh>Comentarios</MudTh>
-               
-            </HeaderContent>
-             
-            <RowTemplate>
-
-                <MudTd DataLabel="Documento">@context.VenvNumedocu</MudTd>
-                <MudTd DataLabel="RIF">@context.VenvRif</MudTd>
-                <MudTd DataLabel="Razón Social">@context.VenvRazosoci</MudTd>
-                <MudTd DataLabel="Status">@context.VenvStatus</MudTd>
-                <MudTd DataLabel="Fecha Emisión">@context.VendEmision</MudTd>
-                <MudTd DataLabel="Comentarios">@context.VenvComentario</MudTd>
-                
-            </RowTemplate>
-
-            <PagerContent>
-
-                <MudTablePager>
-           
-                </MudTablePager>
-          
-            </PagerContent>
  
-</MudTable>
+<MudTable Outlined="true"
+          @ref="table"
+          T="NotaEntregaDto"
+          Items="@notasEntrega"
+          Dense="true"
+          Hover="true"
+          Loading="@loading"
+          LoadingIndicator="true"
+          Filter="new Func<NotaEntregaDto, bool>(FilterFunc)">
 
-@if (selectedNota != null)
-{
-    <MudPaper Class="pa-4 mt-4" Outlined="true">
+    <ToolBarContent>
 
         <MudText Typo="Typo.h6">
-            Detalle de @selectedNota.VenvNumedocu
+            Notas de entrega
         </MudText>
 
-        <MudDivider Class="my-2" />
+        <MudSpacer />
 
-        <MudTable Items="@detalleNota"
-                  Dense="true"
-                  Hover="true"
-                  Loading="@loading2"
-                  LoadingIndicator="true"
-                  Bordered="true">
+        <MudTextField @bind-Value="searchString"
+                      Placeholder="Buscar"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Class="mt-0" />
 
-            <HeaderContent>
-                <MudTh>Id artículo</MudTh>
-                <MudTh>Artículo</MudTh>
-                <MudTh>Cajas</MudTh>
-                <MudTh>Unidades</MudTh>
-                <MudTh>Status</MudTh>
-            </HeaderContent>
+    </ToolBarContent>
 
-            <RowTemplate>
-                <MudTd>@context.VenrvIdarticulo</MudTd>
-                <MudTd>@context.VenrvDescart</MudTd>
-                <MudTd>@context.VenrnCajas</MudTd>
-                <MudTd>@context.VenrnUnidades</MudTd>
-                <MudTd>@context.VenrvStatus</MudTd>
-                
-            </RowTemplate>
+    <!-- HEADER -->
+    <HeaderContent>
+        <MudTh></MudTh>
+        <MudTh>Documento</MudTh>
+        <MudTh>RIF</MudTh>
+        <MudTh>Razón Social</MudTh>
+        <MudTh>Status</MudTh>
+        <MudTh>Fecha Emisión</MudTh>
+        <MudTh>Peso total</MudTh>
+        <MudTh>Volumen total</MudTh>
+        <MudTh>Comentarios</MudTh>
+    </HeaderContent>
 
-            <PagerContent>
+    <!-- ROW PRINCIPAL -->
+    <RowTemplate Context="nota">
 
-                <MudTablePager>
-           
-                </MudTablePager>
-          
-            </PagerContent>
-            
-        </MudTable>
+        <!-- BOTÓN EXPANDIR -->
+        <MudTd>
+            <MudIconButton Icon="@(expandedDocumento == nota.Documento
+                                        ? Icons.Material.Filled.ExpandLess
+                                        : Icons.Material.Filled.ExpandMore)"
+                           OnClick="@(() => ToggleDetalle(nota))" />
+        </MudTd>
 
-    </MudPaper>
-}
-        
+        <MudTd>@nota.Documento</MudTd>
+        <MudTd>@nota.Rif</MudTd>
+        <MudTd>@nota.RazonSocial</MudTd>
+        <MudTd>@nota.Status</MudTd>
+        <MudTd>@nota.FechaEmision.ToString("dd/MM/yyyy")</MudTd>
+        <MudTd>@nota.PesoTotal.ToString("N2")</MudTd>
+        <MudTd>@nota.VolumenTotal.ToString("N2")</MudTd>
+        <MudTd>@nota.Comentarios</MudTd>
+
+    </RowTemplate>
+
+    <!-- DETALLE EXPANDIBLE -->
+    <ChildRowContent Context="nota">
+
+        @if (expandedDocumento == nota.Documento)
+        {
+            <MudTr>
+                <td colspan="7">
+
+                    <MudPaper Class="pa-3">
+
+                        <MudText Typo="Typo.subtitle1" Class="mb-2">
+                            Detalle de @nota.Documento
+                        </MudText>
+
+                        <MudTable T="DetalleNotaDTO"
+                                  Dense="true"
+                                  Hover="true"
+                                  Bordered="true"
+                                  Items="@(detalles.ContainsKey(nota.Documento)
+                                            ? detalles[nota.Documento]
+                                            : new List<DetalleNotaDTO>())">
+
+                            <HeaderContent>
+                                <MudTh>Id artículo</MudTh>
+                                <MudTh>Artículo</MudTh>
+                                <MudTh>Cajas</MudTh>
+                                <MudTh>Unidades</MudTh>
+                                <MudTh>Peso total</MudTh>
+                                <MudTh>Volumen total</MudTh>
+                                <MudTh>Status</MudTh>
+                                
+                            </HeaderContent>
+
+                            <RowTemplate Context="item">
+                                <MudTd>@item.IdArticulo</MudTd>
+                                <MudTd>@item.Descripcion</MudTd>
+                                <MudTd>@item.Cajas</MudTd>
+                                <MudTd>@item.Unidades.ToString("N2")</MudTd>
+                                <MudTd>
+                                    <MudTooltip Text=@($"Peso unitario: {item.PesoUnitario:N2}")>
+                                        @item.PesoTotal.ToString("N2")
+                                    </MudTooltip>
+                                </MudTd>
+                              
+                                <MudTd>
+                                    <MudTooltip Text=@($"Volumen unitario: {item.VolumenUnitario:N2}")>
+                                        @item.VolumenTotal.ToString("N2")
+                                    </MudTooltip>
+                                </MudTd>
+                              
+                                <MudTd>@item.Status</MudTd>
+                            </RowTemplate>
+
+                        </MudTable>
+
+                    </MudPaper>
+
+                </td>
+            </MudTr>
+        }
+
+    </ChildRowContent>
+
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+
+</MudTable>      
 
 @code {
 
-    private DateRange _dateRange { get; set; }
+    private MudTable<NotaEntregaDto> table;
+
+    private string? expandedDocumento;
+
+    private Dictionary<string, List<DetalleNotaDTO>> detalles = new();
+    
+    private DateTime? _selectedDate;
    
-    private MudTable<TnotasentEnc> table;
+ 
     private bool loading = false;
     private bool loading2 = false;
     private string searchString = "";
    
     private TnotasentEnc? selectedNotasEntrega;
  
-    private List<TnotasentEnc> notasEntrega;
- 
+    private List<NotaEntregaDto> notasEntrega;
+     
     private TnotasentEnc? selectedNota;
     private List<TnotasentReg> detalleNota;
     
@@ -158,7 +185,8 @@
 
         try
         {
-            notasEntrega = await NotasEntregaService.GetNotasEntregaByDateRange(_dateRange);
+            notasEntrega = await NotasEntregaService.GetNotasEntregaByDatePesoVolumen(_selectedDate.Value);
+          
         }
         finally
         {
@@ -168,35 +196,42 @@
         StateHasChanged();
     }
     
-    private async Task OnRowSelected(TableRowClickEventArgs<TnotasentEnc> args)
+    private async Task ToggleDetalle(NotaEntregaDto nota)
     {
-        selectedNota = args.Item;
-        loading2 = true;
-        detalleNota = new List<TnotasentReg>();
-        try
+        var documento = nota.Documento;
+
+        if (expandedDocumento == documento)
         {
-            detalleNota = await NotasEntregaService.GetDetalleByNota(selectedNota.VenvNumedocu);
+            expandedDocumento = null;
+            return;
         }
-        finally
+
+        expandedDocumento = documento;
+
+        if (!detalles.ContainsKey(documento))
         {
-            loading2 = false;
+            detalles[documento] = await NotasEntregaService.GetDetalleByNotaPesoVolumen(documento);
         }
-       
+
+        StateHasChanged();
     }
+    
+    
+    
     protected override async Task OnInitializedAsync()
     {
-        
+        _selectedDate = DateTime.Today;
     }
   
-    private bool FilterFunc(TnotasentEnc notasEntrega)
+    private bool FilterFunc(NotaEntregaDto notasEntrega)
     {
         return new[]
             {
-                notasEntrega.VenvTipodocu,
-                notasEntrega.VenvRif,
-                notasEntrega.VenvRazosoci,
-                notasEntrega.VenvStatus,
-                notasEntrega.VenvComentario
+                notasEntrega.Documento,
+                notasEntrega.Rif,
+                notasEntrega.RazonSocial,
+                notasEntrega.Status,
+                notasEntrega.Comentarios
             }
             .Any(x => (x ?? "").Contains(searchString, StringComparison.OrdinalIgnoreCase));
     }

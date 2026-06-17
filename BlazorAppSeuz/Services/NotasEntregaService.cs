@@ -3,6 +3,7 @@ using BlazorAppSeuz.IServices;
 using BlazorAppSeuz.Data;
 using BlazorAppSeuz.Models;
 using BlazorAppZeuz.Data;
+using BlazorAppZeuz.Dto.NotasEntrega;
 using BlazorAppZeuz.Models.Zeuz;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor;
@@ -22,6 +23,24 @@ namespace BlazorAppSeuz.Services
         {
             return await _context.TnotasentReg
                 .Where(x => x.VenrvNumedocu == documento)
+                .ToListAsync();
+        }
+        
+        public async Task<List<DetalleNotaDTO>> GetDetalleByNotaPesoVolumen(string documento)
+        {
+            return await _context.TnotasentReg
+                .Where(x => x.VenrvNumedocu == documento)
+                .Select(x => new DetalleNotaDTO
+                {
+                    IdArticulo = x.VenrvIdarticulo,
+                    Descripcion = x.VenrvDescart,
+                    Cajas = x.VenrnCajas.Value,
+                    Unidades = x.VenrnUnidades.Value,
+                    Status = x.VenrvStatus,
+
+                    PesoUnitario = x.VenrvIdarticuloNavigation.ArtnPeso.Value,
+                    VolumenUnitario = x.VenrvIdarticuloNavigation.ArtnVolumen.Value
+                })
                 .ToListAsync();
         }
         
@@ -50,7 +69,77 @@ namespace BlazorAppSeuz.Services
                 .ToListAsync();
         }
         
+        public async Task<List<TnotasentEnc>> GetNotasEntregaByDate(DateTime day)
+        {
+            var start = day.Date;
+            var end = day.Date.AddDays(1);
+
+            return await _context.TnotasentEnc
+                .Where(x => x.VendEmision >= start && x.VendEmision < end)
+                .ToListAsync();
+        }
         
+        public async Task<List<NotaEntregaDto>> GetNotasEntregaByDatePesoVolumen(DateTime day)
+        {
+            var start = day.Date;
+            var end = day.Date.AddDays(1);
+
+            var notas = await _context.TnotasentEnc
+                .AsNoTracking()
+                .Where(x => x.VendEmision >= start && x.VendEmision < end)
+                .Select(x => new NotaEntregaDto
+                {
+                    Documento = x.VenvNumedocu,
+                    Rif = x.VenvRif,
+                    RazonSocial = x.VenvRazosoci,
+                    Status = x.VenvStatus,
+                    FechaEmision = x.VendEmision.Value,
+                    Comentarios = x.VenvComentario,
+                    PesoTotal = 0,
+                    VolumenTotal = 0
+                })
+                .ToListAsync();
+
+            var documentos = notas
+                .Select(x => x.Documento)
+                .ToList();
+
+            var detalles = await _context.TnotasentReg
+                .AsNoTracking()
+                .Where(x => documentos.Contains(x.VenrvNumedocu))
+                .Select(x => new
+                {
+                    x.VenrvNumedocu,
+
+                    Peso = (decimal)x.VenrnUnidades *
+                           (x.VenrvIdarticuloNavigation.ArtnPeso ?? 0m),
+
+                    Volumen = (decimal)x.VenrnUnidades *
+                              (x.VenrvIdarticuloNavigation.ArtnVolumen ?? 0m)
+                })
+                .ToListAsync();
+
+            var lookup = detalles
+                .GroupBy(x => x.VenrvNumedocu)
+                .ToDictionary(
+                    g => g.Key,
+                    g => new
+                    {
+                        Peso = g.Sum(x => x.Peso),
+                        Volumen = g.Sum(x => x.Volumen)
+                    });
+
+            foreach (var n in notas)
+            {
+                if (lookup.TryGetValue(n.Documento, out var t))
+                {
+                    n.PesoTotal = t.Peso;
+                    n.VolumenTotal = t.Volumen;
+                }
+            }
+
+            return notas;
+        }    
  
         
     }
