@@ -23,6 +23,8 @@ public partial class ZeuzDbContext : DbContext
 
     public virtual DbSet<Tclientesb> Tclientesb { get; set; }
 
+    public virtual DbSet<Tdespachores> Tdespachores { get; set; }
+
     public virtual DbSet<TnotasentEnc> TnotasentEnc { get; set; }
 
     public virtual DbSet<TnotasentReg> TnotasentReg { get; set; }
@@ -736,6 +738,37 @@ public partial class ZeuzDbContext : DbContext
                 .HasMaxLength(80)
                 .HasComment("Telefono")
                 .HasColumnName("CLIEV_TELEFONO2");
+        });
+
+        modelBuilder.Entity<Tdespachores>(entity =>
+        {
+            entity.HasKey(e => e.DespvIddespachador).HasName("PRIMARY");
+
+            entity
+                .ToTable("tdespachores")
+                .HasCharSet("latin1")
+                .UseCollation("latin1_spanish_ci");
+
+            entity.Property(e => e.DespvIddespachador)
+                .HasMaxLength(3)
+                .HasComment("Id de despachador")
+                .HasColumnName("DESPV_IDDESPACHADOR");
+            entity.Property(e => e.DespvDocuid)
+                .HasMaxLength(12)
+                .HasComment("Documento Identicacion de despachador")
+                .HasColumnName("DESPV_DOCUID");
+            entity.Property(e => e.DespvGrado)
+                .HasComment("Grado de licencia de conducir de despachador")
+                .HasColumnType("int(10)")
+                .HasColumnName("DESPV_GRADO");
+            entity.Property(e => e.DespvLicencia)
+                .HasMaxLength(12)
+                .HasComment("Numero de licencia de conducir de despachador")
+                .HasColumnName("DESPV_LICENCIA");
+            entity.Property(e => e.DespvNombre)
+                .HasMaxLength(50)
+                .HasComment("Nombre de despachador")
+                .HasColumnName("DESPV_NOMBRE");
         });
 
         modelBuilder.Entity<TnotasentEnc>(entity =>

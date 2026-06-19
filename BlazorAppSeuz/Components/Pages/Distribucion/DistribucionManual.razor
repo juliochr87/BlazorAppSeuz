@@ -2,9 +2,11 @@
 @using BlazorAppSeuz.IServices
 @using BlazorAppZeuz.Dto.NotasEntrega
 @inject INotasEntregaService NotasEntregaService
+@inject ICamionService CamionService
 @using BlazorAppZeuz.Models.Zeuz
+@inject ISnackbar Snackbar
 
-<MudGrid AlignItems="AlignItems.Center">
+ <MudGrid AlignItems="AlignItems.Center" Class="mb-4">
 
     <MudItem xs="12" sm="6" md="3">
         <MudDatePicker @bind-Date="_selectedDate"
@@ -13,21 +15,148 @@
                        Label="Fecha de emisión" />
     </MudItem>
 
-    <MudItem xs="12" sm="2" Class="d-flex align-center">
+    <MudItem xs="12" sm="6" md="2" Class="d-flex align-center">
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Search"
-                   OnClick="Buscar">
+                   FullWidth="true"
+                   Style="height: 40px;" OnClick="Buscar">
             Buscar
         </MudButton>
     </MudItem>
 
+    <MudItem xs="12" md="12" Class="d-flex flex-wrap justify-start gap-2 mt-2">
+        
+        <MudMenu StartIcon="@Icons.Material.Filled.AutoFixHigh" 
+                 Label="Distribución Automática" 
+                 Color="Color.Secondary" 
+                 Variant="Variant.Filled"
+                 EndIcon="@Icons.Material.Filled.KeyboardArrowDown"
+                 Disabled="@(notasEntrega == null || !notasEntrega.Any() || camiones == null || !camiones.Any())">
+                 
+            <MudMenuItem OnClick="DistribuirPorPeso" 
+                         Icon="@Icons.Material.Filled.Scale">Optimizar por Peso</MudMenuItem>
+                         
+            <MudMenuItem OnClick="DistribuirPorVolumen" 
+                         Icon="@Icons.Material.Filled.Layers">Optimizar por Volumen</MudMenuItem>
+                         
+            <MudMenuItem OnClick="DistribuirPorPesoYVolumen" 
+                         Icon="@Icons.Material.Filled.AllInclusive">Optimizar por Ambos (Estricto)</MudMenuItem>
+        </MudMenu>
+
+        <MudButton Variant="Variant.Outlined" 
+                   Color="Color.Dark"
+                   OnClick="ReiniciarDistribucion">
+            Reiniciar Pantalla
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Primary" 
+                   StartIcon="@Icons.Material.Filled.Save"
+                   Disabled="@(camiones == null || !camiones.Any(c => c.NotasAsignadas.Any()))"
+                   >
+            Confirmar y Guardar Despacho
+        </MudButton>
+        
+        <MudButton Variant="Variant.Filled" 
+                   Color="Color.Success" 
+                   StartIcon="@Icons.Material.Filled.Add"
+                   Disabled="@(camionSeleccionado == null || !notasSeleccionadas.Any())"
+                   OnClick="AsignarNotasACamion">
+            Asignar (@notasSeleccionadas.Count) al Camión @(camionSeleccionado?.Placa)
+        </MudButton>
+        
+    </MudItem>
+    
 </MudGrid>
 <br/>
+
+<MudPaper Class="pa-4 mb-4" Elevation="3">
+    <MudText Typo="Typo.h6" Class="mb-3">Flota Disponible</MudText>
+    
+   <MudGrid Spacing="2">
+    @if (camiones != null)
+    {
+        @foreach (var camion in camiones)
+        {
+            <MudItem xs="6" sm="4" md="3" lg="2">
+                <MudCard Elevation="@(camionSeleccionado == camion ? 8 : 1)"
+                         Style="cursor: pointer; transition: 0.2s;"
+                         Class="@(camionSeleccionado == camion ? "border-solid border-2 mud-border-primary" : "")"
+                         @onclick="() => SeleccionarCamion(camion)">
+                    
+                  <MudCardContent Class="pa-2">
+                      
+                      <div class="d-flex align-center justify-space-between mb-1">
+                          <MudText Typo="Typo.body2" Style="font-weight: bold;">
+                              <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" Class="mr-1 mb-n1"/>
+                              @camion.Placa
+                          </MudText>
+    
+                          <div class="d-flex align-center">
+                              <MudText Typo="Typo.caption" Color="Color.Primary" Class="mr-1">
+                                  <b>@camion.NotasAsignadas.Count notas</b>
+                              </MudText>
+                              <MudIconButton Icon="@Icons.Material.Filled.FormatListBulleted" 
+                                             Size="Size.Small" 
+                                             Color="Color.Primary"
+                                             OnClick="() => AbrirDetalleCamion(camion)" />
+                          </div>
+                      </div>
+                       
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block text-truncate mb-2">
+                            @camion.NombreDespachador
+                        </MudText>
+
+                        <div class="d-flex justify-space-between mb-2 pa-1" style="background-color: var(--mud-palette-background-grey); border-radius: 4px;">
+                            <MudText Typo="Typo.caption" Style="font-size: 0.70rem;">
+                                📦 Cajas: <b>@camion.TotalCajas.ToString("N0")</b>
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="font-size: 0.70rem;">
+                                🛒 Artículos: <b>@camion.TotalArticulos.ToString("N0")</b>
+                            </MudText>
+                        </div>
+
+                        <div class="d-flex justify-space-between align-end">
+                            <MudText Typo="Typo.caption" Style="font-size: 0.70rem;">
+                                Peso: @camion.PesoActual.ToString("0.##") kg
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="font-size: 0.70rem;">
+                                @camion.CapacidadPesoKg.ToString("0.##") kg
+                            </MudText>
+                        </div>
+                        <MudProgressLinear Value="@camion.PorcentajePeso" 
+                                           Color="@ObtenerColorCarga(camion.PorcentajePeso)" 
+                                           Size="Size.Small" 
+                                           Class="mb-2" />
+
+                        <div class="d-flex justify-space-between align-end">
+                            <MudText Typo="Typo.caption" Style="font-size: 0.70rem;">
+                                Vol: @camion.VolumenActual.ToString("N2") m³
+                            </MudText>
+                            <MudText Typo="Typo.caption" Style="font-size: 0.70rem;">
+                                @camion.CapacidadVolumen.ToString("N2") m³
+                            </MudText>
+                        </div>
+                        <MudProgressLinear Value="@camion.PorcentajeVolumen" 
+                                           Color="@ObtenerColorCarga(camion.PorcentajeVolumen)" 
+                                           Size="Size.Small" />
+                        
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    }
+</MudGrid>
+
+
+</MudPaper>
  
 <MudTable Outlined="true"
           @ref="table"
           T="NotaEntregaDto"
+          MultiSelection="true"
+          @bind-SelectedItems="notasSeleccionadas" 
           Items="@notasEntrega"
           Dense="true"
           Hover="true"
@@ -59,6 +188,8 @@
         <MudTh>Razón Social</MudTh>
         <MudTh>Status</MudTh>
         <MudTh>Fecha Emisión</MudTh>
+        <MudTh>Total cajas</MudTh>
+        <MudTh>Total artículos</MudTh>
         <MudTh>Peso total</MudTh>
         <MudTh>Volumen total</MudTh>
         <MudTh>Comentarios</MudTh>
@@ -80,6 +211,8 @@
         <MudTd>@nota.RazonSocial</MudTd>
         <MudTd>@nota.Status</MudTd>
         <MudTd>@nota.FechaEmision.ToString("dd/MM/yyyy")</MudTd>
+        <MudTd>@nota.CajasTotal.ToString("N2")</MudTd>
+        <MudTd>@nota.LineasTotal.ToString("N2")</MudTd>
         <MudTd>@nota.PesoTotal.ToString("N2")</MudTd>
         <MudTd>@nota.VolumenTotal.ToString("N2")</MudTd>
         <MudTd>@nota.Comentarios</MudTd>
@@ -155,10 +288,100 @@
 
 </MudTable>      
 
+
+<MudDialog @bind-Visible="_dialogVisible" Options="_dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Inventory" Class="mr-2 mb-n1"/>
+            Contenido del Camión @(_camionEnDetalle?.Placa)
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_camionEnDetalle != null && _camionEnDetalle.NotasAsignadas.Any())
+        {
+           <MudTable Items="@_camionEnDetalle.NotasAsignadas" Dense="true" Hover="true" Elevation="0" Outlined="true">
+    <HeaderContent>
+        <MudTh></MudTh> <MudTh>Documento</MudTh>
+        <MudTh>Razón Social</MudTh>
+        <MudTh>Cajas</MudTh>
+        <MudTh>Peso</MudTh>
+        <MudTh>Volumen</MudTh>
+        <MudTh></MudTh> </HeaderContent>
+    
+    <RowTemplate Context="nota">
+        <MudTd>
+            <MudIconButton Icon="@(expandedDocumentoModal == nota.Documento
+                                        ? Icons.Material.Filled.ExpandLess
+                                        : Icons.Material.Filled.ExpandMore)"
+                           OnClick="@(() => ToggleDetalleModal(nota))" 
+                           Size="Size.Small"/>
+        </MudTd>
+
+        <MudTd>@nota.Documento</MudTd>
+        <MudTd>@nota.RazonSocial</MudTd>
+        <MudTd>@nota.CajasTotal.ToString("N0")</MudTd>
+        <MudTd>@nota.PesoTotal.ToString("N2") kg</MudTd>
+        <MudTd>@nota.VolumenTotal.ToString("N2") m³</MudTd>
+        
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                           Color="Color.Error" 
+                           Size="Size.Small" 
+                           OnClick="() => RemoverNotaDeCamion(nota)"/>
+        </MudTd>
+    </RowTemplate>
+
+    <ChildRowContent Context="nota">
+        @if (expandedDocumentoModal == nota.Documento)
+        {
+            <MudTr>
+                <td colspan="7">
+                    <MudPaper Class="pa-3 my-2" Elevation="0" Outlined="true" Style="background-color: var(--mud-palette-background-grey);">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">
+                            Artículos del documento @nota.Documento
+                        </MudText>
+
+                        <MudTable T="DetalleNotaDTO"
+                                  Dense="true"
+                                  Bordered="true"
+                                  Elevation="0"
+                                  Items="@(detalles.ContainsKey(nota.Documento) ? detalles[nota.Documento] : new List<DetalleNotaDTO>())">
+                            <HeaderContent>
+                                <MudTh>Artículo</MudTh>
+                                <MudTh>Cajas</MudTh>
+                                <MudTh>Unidades</MudTh>
+                                <MudTh>Peso Unitario</MudTh>
+                            </HeaderContent>
+                            <RowTemplate Context="item">
+                                <MudTd>@item.Descripcion</MudTd>
+                                <MudTd>@item.Cajas</MudTd>
+                                <MudTd>@item.Unidades.ToString("N2")</MudTd>
+                                <MudTd>@item.PesoUnitario.ToString("N2") kg</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudPaper>
+                </td>
+            </MudTr>
+        }
+    </ChildRowContent>
+</MudTable>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info">Este camión está vacío actualmente.</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="CerrarDetalle">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
 
+    
     private MudTable<NotaEntregaDto> table;
-
+    private HashSet<NotaEntregaDto> notasSeleccionadas = new();
+    
     private string? expandedDocumento;
 
     private Dictionary<string, List<DetalleNotaDTO>> detalles = new();
@@ -176,6 +399,28 @@
      
     private TnotasentEnc? selectedNota;
     private List<TnotasentReg> detalleNota;
+    
+    private List<CamionDTO> camiones = new();
+    private CamionDTO? camionSeleccionado;
+    
+    
+    // --- VARIABLES PARA EL MODAL DE DETALLES ---
+    private bool _dialogVisible;
+    private CamionDTO? _camionEnDetalle;
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseButton = true };
+
+    // --- MÉTODOS DEL MODAL ---
+    private void AbrirDetalleCamion(CamionDTO camion)
+    {
+        _camionEnDetalle = camion;
+        _dialogVisible = true;
+    }
+
+    private void CerrarDetalle()
+    {
+        _dialogVisible = false;
+        _camionEnDetalle = null;
+    }
     
     private async Task Buscar()
     {
@@ -221,6 +466,8 @@
     protected override async Task OnInitializedAsync()
     {
         _selectedDate = DateTime.Today;
+        
+        camiones = await CamionService.GetAllCamionesConDespachadorAsync();
     }
   
     private bool FilterFunc(NotaEntregaDto notasEntrega)
@@ -234,6 +481,213 @@
                 notasEntrega.Comentarios
             }
             .Any(x => (x ?? "").Contains(searchString, StringComparison.OrdinalIgnoreCase));
+    }
+    
+    // Método para seleccionar el camión visualmente
+    private void SeleccionarCamion(CamionDTO camion)
+    {
+        camionSeleccionado = camion;
+    }
+
+    // Lógica de colores: Verde (0-75%), Amarillo (76-99%), Rojo (100%+)
+    private Color ObtenerColorCarga(double porcentaje)
+    {
+        if (porcentaje >= 100) return Color.Error;
+        if (porcentaje >= 75) return Color.Warning;
+        return Color.Success;
+    }
+
+    // Método para agregar las notas al camión
+    private void AsignarNotasACamion()
+    {
+        if (camionSeleccionado == null || !notasSeleccionadas.Any()) return;
+
+        // 1. Agregamos las notas seleccionadas a la lista interna del camión
+        camionSeleccionado.NotasAsignadas.AddRange(notasSeleccionadas);
+
+        // 2. Quitamos las notas de la lista general (para que desaparezcan de la tabla de abajo y no se asignen 2 veces)
+        notasEntrega.RemoveAll(n => notasSeleccionadas.Contains(n));
+
+        // 3. Limpiamos la selección de la tabla
+        notasSeleccionadas.Clear();
+
+        // 4. Forzamos a que Blazor repinte la pantalla para actualizar barras y tabla
+        StateHasChanged();
+    }
+    
+    // --- NUEVAS VARIABLES Y MÉTODOS PARA EL MODAL ---
+    
+    // Usamos una variable separada para el modal, así no afecta la tabla principal
+    private string? expandedDocumentoModal;
+
+    private async Task ToggleDetalleModal(NotaEntregaDto nota)
+    {
+        var documento = nota.Documento;
+
+        if (expandedDocumentoModal == documento)
+        {
+            expandedDocumentoModal = null;
+            return;
+        }
+
+        expandedDocumentoModal = documento;
+
+        // ¡Aquí está la magia! Reutilizamos el diccionario 'detalles' que creaste 
+        // al principio. Si la data ya se bajó de la base de datos, no la vuelve a pedir.
+        if (!detalles.ContainsKey(documento))
+        {
+            detalles[documento] = await NotasEntregaService.GetDetalleByNotaPesoVolumen(documento);
+        }
+
+        StateHasChanged();
+    }
+
+    private void RemoverNotaDeCamion(NotaEntregaDto nota)
+    {
+        if (_camionEnDetalle != null)
+        {
+            // 1. Quitamos la nota del camión
+            _camionEnDetalle.NotasAsignadas.Remove(nota);
+            
+            // 2. La devolvemos a la tabla principal para que el usuario pueda reasignarla a otro camión
+            notasEntrega.Add(nota);
+            
+            // 3. Opcional: Mostramos una alerta de que se removió
+            Snackbar.Add($"Nota {nota.Documento} retirada del camión y devuelta a la lista.", Severity.Info);
+            
+            StateHasChanged();
+
+            // Si el usuario vació el camión por completo, cerramos el modal automáticamente
+            if (!_camionEnDetalle.NotasAsignadas.Any())
+            {
+                CerrarDetalle();
+            }
+        }
+    }
+    
+    // ==========================================
+// ESTRATEGIA 1: SOLO POR PESO
+// ==========================================
+    private void DistribuirPorPeso()
+    {
+        // Ordenamos por peso (más pesado primero)
+        var notasOrdenadas = notasEntrega.OrderByDescending(n => n.PesoTotal).ToList();
+    
+        // Condición: Que solo valide que no se pase del peso máximo
+        Func<CamionDTO, NotaEntregaDto, bool> validacionPeso = (camion, nota) => 
+            (camion.PesoActual + nota.PesoTotal) <= camion.CapacidadPesoKg;
+
+        EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionPeso, "Peso");
+    }
+
+// ==========================================
+// ESTRATEGIA 2: SOLO POR VOLUMEN
+// ==========================================
+    private void DistribuirPorVolumen()
+    {
+        // Ordenamos por volumen (más voluminoso primero)
+        var notasOrdenadas = notasEntrega.OrderByDescending(n => n.VolumenTotal).ToList();
+    
+        // Condición: Que solo valide que no se pase del volumen máximo
+        Func<CamionDTO, NotaEntregaDto, bool> validacionVolumen = (camion, nota) => 
+            (camion.VolumenActual + nota.VolumenTotal) <= camion.CapacidadVolumen;
+
+        EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionVolumen, "Volumen");
+    }
+
+// ==========================================
+// ESTRATEGIA 3: PESO Y VOLUMEN (COMBINADO)
+// ==========================================
+    private void DistribuirPorPesoYVolumen()
+    {
+        // Ordenamos combinando ambos factores para priorizar lo más crítico primero
+        var notasOrdenadas = notasEntrega.OrderByDescending(n => n.PesoTotal + n.VolumenTotal).ToList();
+    
+        // Condición: Debe cumplir AMBOS requisitos estrictamente
+        Func<CamionDTO, NotaEntregaDto, bool> validacionCombinada = (camion, nota) => 
+            (camion.PesoActual + nota.PesoTotal) <= camion.CapacidadPesoKg &&
+            (camion.VolumenActual + nota.VolumenTotal) <= camion.CapacidadVolumen;
+
+        EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionCombinada, "Peso y Volumen");
+    }
+    
+    private async Task ReiniciarDistribucion()
+    {
+        try
+        {
+            // 1. Limpiamos las selecciones manuales y los checkbox marcados
+            notasSeleccionadas.Clear();
+            camionSeleccionado = null;
+
+            // 2. Vaciamos las notas acumuladas dentro de cada camión
+            if (camiones != null)
+            {
+                foreach (var camion in camiones)
+                {
+                    camion.NotasAsignadas.Clear();
+                }
+            }
+
+            // 3. Volvemos a consultar la base de datos
+            // Esto hace que la tabla inferior recupere instantáneamente todas las notas originales
+            await Buscar();
+
+            // 4. Enviamos una alerta visual de que todo volvió a cero
+            Snackbar.Add("Pantalla reiniciada. Se restableció la distribución original.", Severity.Info);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al reiniciar la distribución: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            // 5. Refrescamos la interfaz de usuario para actualizar las barras de progreso a 0%
+            StateHasChanged();
+        }
+    }
+    
+    private void EjecutarAlgoritmoDistribucion(
+        List<NotaEntregaDto> notasAProcesar, 
+        Func<CamionDTO, NotaEntregaDto, bool> cumpleCondicion, 
+        string tipoEstrategia)
+    {
+        if (!notasEntrega.Any() || !camiones.Any())
+        {
+            Snackbar.Add("No hay datos suficientes para distribuir.", Severity.Warning);
+            return;
+        }
+
+        int asignadas = 0;
+
+        foreach (var nota in notasAProcesar)
+        {
+            // Buscamos el primer camión que cumpla con la regla enviada por la estrategia
+            var camionDestino = camiones.FirstOrDefault(c => cumpleCondicion(c, nota));
+
+            if (camionDestino != null)
+            {
+                camionDestino.NotasAsignadas.Add(nota);
+                notasEntrega.Remove(nota);
+                asignadas++;
+            }
+        }
+
+        notasSeleccionadas.Clear();
+
+        // Mensajes personalizados según el resultado
+        if (asignadas > 0)
+        {
+            if (!notasEntrega.Any())
+                Snackbar.Add($"[Modo: {tipoEstrategia}] ¡Distribución automática perfecta! Se asignaron todas las notas.", Severity.Success);
+            else
+                Snackbar.Add($"[Modo: {tipoEstrategia}] Se asignaron {asignadas} notas. Quedaron {notasEntrega.Count} pendientes por capacidad.", Severity.Warning);
+        }
+        else
+        {
+            Snackbar.Add($"[Modo: {tipoEstrategia}] Ninguna nota pudo ser asignada con las capacidades actuales.", Severity.Error);
+        }
+
+        StateHasChanged();
     }
 
 }

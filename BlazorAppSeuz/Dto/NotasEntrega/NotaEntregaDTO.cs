@@ -12,4 +12,7 @@ public class NotaEntregaDto
 
     public decimal PesoTotal { get; set; }
     public decimal VolumenTotal { get; set; }
+    
+    public decimal CajasTotal { get; set; }
+    public int LineasTotal { get; set; }
 }

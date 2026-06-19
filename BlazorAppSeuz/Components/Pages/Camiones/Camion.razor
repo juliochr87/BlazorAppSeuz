@@ -2,7 +2,9 @@
 @using System.Net.Http.Json
 @using BlazorAppSeuz.IServices
 @using BlazorAppSeuz.Services
+@using BlazorAppZeuz.Dto.NotasEntrega
 @using BlazorAppZeuz.Models.Zeuz
+@using MudBlazor.Extensions
 @inject ICamionService CamionService
 @inject ISnackbar Snackbar
  
@@ -21,7 +23,7 @@
                   EditButtonPosition="TableEditButtonPosition.End"
                   ApplyButtonPosition="TableApplyButtonPosition.End"
                   IsEditRowSwitchingBlocked="true"
-                  Filter="new Func<Tcamiones, bool>(FilterFunc)"
+                  Filter="new Func<CamionDTO, bool>(FilterFunc)"
                   RowEditCommit="ItemHasBeenCommitted" 
                   RowEditPreview="BackupItem"
                   RowEditCancel="ResetItemToOriginalValues"
@@ -46,6 +48,7 @@
 
             <HeaderContent>
                 <MudTh>ID Camion</MudTh>
+                <MudTh>Despachador</MudTh>
                 <MudTh>Placa</MudTh>
                 <MudTh>Descripción</MudTh>
                 <MudTh>RIF</MudTh>
@@ -57,44 +60,49 @@
              
             <RowTemplate>
 
-                <MudTd DataLabel="ID Camion">@context.CamivIdcamion</MudTd>
-                <MudTd DataLabel="Placa">@context.CamivPlaca</MudTd>
-                <MudTd DataLabel="Descripción">@context.CamivDescripcion</MudTd>
-                <MudTd DataLabel="RIF">@context.CamivRif</MudTd>
-                <MudTd DataLabel="Razón social">@context.CamivRazosoci</MudTd>
-                <MudTd DataLabel="Volumen">@context.CaminVolumen</MudTd>
-                <MudTd DataLabel="Toneladas">@context.CaminToneladas</MudTd>
+                <MudTd DataLabel="ID Camion">@context.IdCamion</MudTd>
+                <MudTd DataLabel="Despachador">@context.NombreDespachador</MudTd>
+                <MudTd DataLabel="Placa">@context.Placa</MudTd>
+                <MudTd DataLabel="Descripción">@context.Descripcion</MudTd>
+                <MudTd DataLabel="RIF">@context.Rif</MudTd>
+                <MudTd DataLabel="Razón social">@context.RazonSocial</MudTd>
+                <MudTd DataLabel="Volumen">@context.CapacidadVolumen.ToString("0.##")</MudTd>
+                <MudTd DataLabel="Toneladas">@context.CapacidadPesoKg.ToString("0.##")</MudTd>
             </RowTemplate>
 
             <RowEditingTemplate>
 
                 <MudTd DataLabel="Id Camion">
-                    <MudTextField @bind-Value="context.CamivIdcamion" Required="true" Disabled="true"  />
+                    <MudTextField @bind-Value="context.IdCamion" Required="true" Disabled="true"  />
                 </MudTd>
 
+                <MudTd DataLabel="Despachador">
+                    <MudTextField @bind-Value="context.NombreDespachador" Required="true" Disabled="true"  />
+                </MudTd>
+                
                 <MudTd DataLabel="Placa">
-                    <MudTextField @bind-Value="context.CamivPlaca" Required="true" />
+                    <MudTextField @bind-Value="context.Placa" Required="true" />
                 </MudTd>
  
                 <MudTd DataLabel="Descripcion">
-                    <MudTextField @bind-Value="context.CamivDescripcion"
+                    <MudTextField @bind-Value="context.Descripcion"
                                   Required="false" />
                 </MudTd>
  
                 <MudTd DataLabel="RIF">
-                    <MudTextField @bind-Value="context.CamivRif" />
+                    <MudTextField @bind-Value="context.Rif" />
                 </MudTd>
                 
                 <MudTd DataLabel="Razón social">
-                    <MudTextField @bind-Value="context.CamivRazosoci" />
+                    <MudTextField @bind-Value="context.RazonSocial" />
                 </MudTd>
                 
                 <MudTd DataLabel="Volumen">
-                    <MudTextField @bind-Value="context.CaminVolumen" />
+                    <MudTextField Format="0.##"  @bind-Value="context.CapacidadVolumen" />
                 </MudTd>
                 
                 <MudTd DataLabel="Toneladas">
-                    <MudTextField @bind-Value="context.CaminToneladas" />
+                    <MudTextField Format="0.##" @bind-Value="context.CapacidadPesoKg" />
                 </MudTd>
  
             </RowEditingTemplate>
@@ -114,7 +122,7 @@
 
 @code {
 
-    private MudTable<Tcamiones> table;
+    private MudTable<CamionDTO> table;
     private bool isEditing = false;
     private bool _showDeletedUsers;
 
@@ -139,16 +147,16 @@
 
     private string searchString = "";
     public string passwordX = Constants.passwordxxx;
-    private Tcamiones? selectedUser;
+    private CamionDTO? selectedUser;
 
-    private Tcamiones elementBeforeEdit;
+    private CamionDTO elementBeforeEdit;
 
 
-    private List<Tcamiones> camiones = new();
+    private List<CamionDTO> camiones = new();
 
     private async Task LoadUsers()
     {
-        camiones = await CamionService.GetAllAsync();
+        camiones = await CamionService.GetAllCamionesConSinDespachadorAsync();
  
         StateHasChanged();
     }
@@ -200,11 +208,11 @@
         try
         {
             
-            var user = (Tcamiones)userObj;
+            var user = (CamionDTO)userObj;
 
             
 
-            if (user.CamivIdcamion.Equals(0))
+            if (user.IdCamion.Equals(0))
             {
                 // ES NUEVO → CREATE
                 //await UserService.CreateAsync(user);
@@ -248,17 +256,17 @@
         }
     }
 
-    private bool FilterFunc(Tcamiones camion)
+    private bool FilterFunc(CamionDTO camion)
     {
         return new[]
             {
-                camion.CamivIdcamion,
-                camion.CamivDescripcion,
-                camion.CamivPlaca,
-                camion.CamivRif,
-                camion.CamivRazosoci,
-                camion.CaminVolumen?.ToString(),
-                camion.CaminToneladas?.ToString(),
+                camion.IdCamion,
+                camion.Descripcion,
+                camion.Placa,
+                camion.Rif,
+                camion.RazonSocial,
+                camion.CapacidadVolumen.ToString(),
+                camion.CapacidadPesoKg.ToString(),
             }
             .Any(x => (x ?? "").Contains(searchString, StringComparison.OrdinalIgnoreCase));
     }

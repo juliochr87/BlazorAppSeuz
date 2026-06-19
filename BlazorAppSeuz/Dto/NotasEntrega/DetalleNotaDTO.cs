@@ -11,6 +11,6 @@ public class DetalleNotaDTO
     public decimal PesoUnitario { get; set; }
     public decimal VolumenUnitario { get; set; }
 
-    public decimal PesoTotal => Unidades * PesoUnitario;
-    public decimal VolumenTotal => Unidades * VolumenUnitario;
+    public decimal PesoTotal => Cajas * PesoUnitario;
+    public decimal VolumenTotal => Cajas * VolumenUnitario;
 }
