@@ -207,8 +207,8 @@
         </MudTd>
 
         <MudTd>@nota.Documento</MudTd>
-        <MudTd>@nota.Rif</MudTd>
-        <MudTd>@nota.RazonSocial</MudTd>
+        <MudTd Style="@ObtenerEstiloPorCliente(nota)">@nota.Rif</MudTd>
+        <MudTd Style="@ObtenerEstiloPorCliente(nota)">@nota.RazonSocial</MudTd>
         <MudTd>@nota.Status</MudTd>
         <MudTd>@nota.FechaEmision.ToString("dd/MM/yyyy")</MudTd>
         <MudTd>@nota.CajasTotal.ToString("N2")</MudTd>
@@ -216,6 +216,7 @@
         <MudTd>@nota.PesoTotal.ToString("N2")</MudTd>
         <MudTd>@nota.VolumenTotal.ToString("N2")</MudTd>
         <MudTd>@nota.Comentarios</MudTd>
+      
 
     </RowTemplate>
 
@@ -565,51 +566,115 @@
         }
     }
     
-    // ==========================================
-// ESTRATEGIA 1: SOLO POR PESO
 // ==========================================
-    private void DistribuirPorPeso()
-    {
-        // Ordenamos por peso (más pesado primero)
-        var notasOrdenadas = notasEntrega.OrderByDescending(n => n.PesoTotal).ToList();
+// ESTRATEGIA 1: SOLO POR PESO (Consolidado por Cliente)
+// ==========================================
+private void DistribuirPorPeso()
+{
+    // Agrupamos por RIF, ordenamos los grupos por el peso TOTAL acumulado del cliente
+    // y luego aplanamos la lista manteniendo las notas del mismo cliente juntas.
+    var notasOrdenadas = notasEntrega
+        .GroupBy(n => n.Rif)
+        .OrderByDescending(grupo => grupo.Sum(n => n.PesoTotal))
+        .SelectMany(grupo => grupo.OrderByDescending(n => n.PesoTotal))
+        .ToList();
     
-        // Condición: Que solo valide que no se pase del peso máximo
-        Func<CamionDTO, NotaEntregaDto, bool> validacionPeso = (camion, nota) => 
-            (camion.PesoActual + nota.PesoTotal) <= camion.CapacidadPesoKg;
+    Func<CamionDTO, NotaEntregaDto, bool> validacionPeso = (camion, nota) => 
+        (camion.PesoActual + nota.PesoTotal) <= camion.CapacidadPesoKg;
 
-        EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionPeso, "Peso");
+    EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionPeso, "Peso (Agrupado por Cliente)");
+}
+
+// ==========================================
+// ESTRATEGIA 2: SOLO POR VOLUMEN (Consolidado por Cliente)
+// ==========================================
+private void DistribuirPorVolumen()
+{
+    // Agrupamos por RIF y ordenamos por el volumen TOTAL acumulado del cliente
+    var notasOrdenadas = notasEntrega
+        .GroupBy(n => n.Rif)
+        .OrderByDescending(grupo => grupo.Sum(n => n.VolumenTotal))
+        .SelectMany(grupo => grupo.OrderByDescending(n => n.VolumenTotal))
+        .ToList();
+    
+    Func<CamionDTO, NotaEntregaDto, bool> validacionVolumen = (camion, nota) => 
+        (camion.VolumenActual + nota.VolumenTotal) <= camion.CapacidadVolumen;
+
+    EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionVolumen, "Volumen (Agrupado por Cliente)");
+}
+
+// ==========================================
+// ESTRATEGIA 3: PESO Y VOLUMEN (COMBINADO) - CORREGIDO
+// ==========================================
+private void DistribuirPorPesoYVolumen()
+{
+    // Agrupamos por RIF y ordenamos por la masa crítica total (Peso + Volumen) del cliente
+    var notasOrdenadas = notasEntrega
+        .GroupBy(n => n.Rif)
+        .OrderByDescending(grupo => grupo.Sum(n => n.PesoTotal + n.VolumenTotal))
+        .SelectMany(grupo => grupo.OrderByDescending(n => n.PesoTotal + n.VolumenTotal)) // ¡Corregido aquí!
+        .ToList();
+    
+    Func<CamionDTO, NotaEntregaDto, bool> validacionCombinada = (camion, nota) => 
+        (camion.PesoActual + nota.PesoTotal) <= camion.CapacidadPesoKg &&
+        (camion.VolumenActual + nota.VolumenTotal) <= camion.CapacidadVolumen;
+
+    EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionCombinada, "Peso y Volumen (Agrupado por Cliente)");
+}
+
+// ==========================================
+// MÉTODO MAESTRO CON LÓGICA DE AFINIDAD
+// ==========================================
+private void EjecutarAlgoritmoDistribucion(
+    List<NotaEntregaDto> notasAProcesar, 
+    Func<CamionDTO, NotaEntregaDto, bool> cumpleCondicion, 
+    string tipoEstrategia)
+{
+    if (!notasEntrega.Any() || !camiones.Any())
+    {
+        Snackbar.Add("No hay datos suficientes para distribuir.", Severity.Warning);
+        return;
     }
 
-// ==========================================
-// ESTRATEGIA 2: SOLO POR VOLUMEN
-// ==========================================
-    private void DistribuirPorVolumen()
-    {
-        // Ordenamos por volumen (más voluminoso primero)
-        var notasOrdenadas = notasEntrega.OrderByDescending(n => n.VolumenTotal).ToList();
-    
-        // Condición: Que solo valide que no se pase del volumen máximo
-        Func<CamionDTO, NotaEntregaDto, bool> validacionVolumen = (camion, nota) => 
-            (camion.VolumenActual + nota.VolumenTotal) <= camion.CapacidadVolumen;
+    int asignadas = 0;
 
-        EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionVolumen, "Volumen");
+    foreach (var nota in notasAProcesar)
+    {
+        // REGLA 1 (AFINIDAD): ¿Hay algún camión que YA tenga notas de este RIF y que además tenga espacio?
+        var camionDestino = camiones.FirstOrDefault(c => 
+            c.NotasAsignadas.Any(n => n.Rif == nota.Rif) && cumpleCondicion(c, nota));
+
+        // REGLA 2 (FALLBACK): Si no hay camión previo para este cliente (o el que había ya se llenó),
+        // buscamos el primer camión disponible de la lista que soporte la carga.
+        if (camionDestino == null)
+        {
+            camionDestino = camiones.FirstOrDefault(c => cumpleCondicion(c, nota));
+        }
+
+        if (camionDestino != null)
+        {
+            camionDestino.NotasAsignadas.Add(nota);
+            notasEntrega.Remove(nota);
+            asignadas++;
+        }
     }
 
-// ==========================================
-// ESTRATEGIA 3: PESO Y VOLUMEN (COMBINADO)
-// ==========================================
-    private void DistribuirPorPesoYVolumen()
-    {
-        // Ordenamos combinando ambos factores para priorizar lo más crítico primero
-        var notasOrdenadas = notasEntrega.OrderByDescending(n => n.PesoTotal + n.VolumenTotal).ToList();
-    
-        // Condición: Debe cumplir AMBOS requisitos estrictamente
-        Func<CamionDTO, NotaEntregaDto, bool> validacionCombinada = (camion, nota) => 
-            (camion.PesoActual + nota.PesoTotal) <= camion.CapacidadPesoKg &&
-            (camion.VolumenActual + nota.VolumenTotal) <= camion.CapacidadVolumen;
+    notasSeleccionadas.Clear();
 
-        EjecutarAlgoritmoDistribucion(notasOrdenadas, validacionCombinada, "Peso y Volumen");
+    if (asignadas > 0)
+    {
+        if (!notasEntrega.Any())
+            Snackbar.Add($"[Modo: {tipoEstrategia}] ¡Distribución optimizada por cliente completada con éxito!", Severity.Success);
+        else
+            Snackbar.Add($"[Modo: {tipoEstrategia}] Se asignaron {asignadas} notas agrupadas. Quedaron {notasEntrega.Count} pendientes por falta de espacio.", Severity.Warning);
     }
+    else
+    {
+        Snackbar.Add($"[Modo: {tipoEstrategia}] Ninguna nota pudo asignarse.", Severity.Error);
+    }
+
+    StateHasChanged();
+}
     
     private async Task ReiniciarDistribucion()
     {
@@ -646,48 +711,40 @@
         }
     }
     
-    private void EjecutarAlgoritmoDistribucion(
-        List<NotaEntregaDto> notasAProcesar, 
-        Func<CamionDTO, NotaEntregaDto, bool> cumpleCondicion, 
-        string tipoEstrategia)
+ 
+    
+    private readonly string[] _paletaColoresClientes = new[] 
     {
-        if (!notasEntrega.Any() || !camiones.Any())
+        "#0D47A1", // Azul Eléctrico
+        "#1B5E20", // Verde Bosque
+        "#B71C1C", // Rojo Vino
+        "#4A148C", // Púrpura Profundo
+        "#E65100", // Naranja Tostado
+        "#006064", // Azul Turquesa
+        "#3E2723", // Marrón Café
+        "#263238", // Gris Asfalto
+        "#004D40"  // Verde Esmeralda
+    };
+
+    private string ObtenerEstiloPorCliente(NotaEntregaDto nota)
+    {
+        if (nota == null || string.IsNullOrEmpty(nota.Rif) || notasEntrega == null) 
+            return "";
+
+        // 1. Contamos cuántas notas de entrega tienen este mismo RIF en la tabla
+        int cantidadNotasDeEsteCliente = notasEntrega.Count(n => n.Rif == nota.Rif);
+
+        // 2. Si el cliente solo tiene una nota (NO está repetido), devolvemos texto normal
+        if (cantidadNotasDeEsteCliente <= 1)
         {
-            Snackbar.Add("No hay datos suficientes para distribuir.", Severity.Warning);
-            return;
+            return ""; 
         }
 
-        int asignadas = 0;
+        // 3. Si tiene más de una nota, calculamos su color para agruparlo
+        int indiceColor = Math.Abs(nota.Rif.GetHashCode()) % _paletaColoresClientes.Length;
+        string colorElegido = _paletaColoresClientes[indiceColor];
 
-        foreach (var nota in notasAProcesar)
-        {
-            // Buscamos el primer camión que cumpla con la regla enviada por la estrategia
-            var camionDestino = camiones.FirstOrDefault(c => cumpleCondicion(c, nota));
-
-            if (camionDestino != null)
-            {
-                camionDestino.NotasAsignadas.Add(nota);
-                notasEntrega.Remove(nota);
-                asignadas++;
-            }
-        }
-
-        notasSeleccionadas.Clear();
-
-        // Mensajes personalizados según el resultado
-        if (asignadas > 0)
-        {
-            if (!notasEntrega.Any())
-                Snackbar.Add($"[Modo: {tipoEstrategia}] ¡Distribución automática perfecta! Se asignaron todas las notas.", Severity.Success);
-            else
-                Snackbar.Add($"[Modo: {tipoEstrategia}] Se asignaron {asignadas} notas. Quedaron {notasEntrega.Count} pendientes por capacidad.", Severity.Warning);
-        }
-        else
-        {
-            Snackbar.Add($"[Modo: {tipoEstrategia}] Ninguna nota pudo ser asignada con las capacidades actuales.", Severity.Error);
-        }
-
-        StateHasChanged();
+        return $"color: {colorElegido};";
     }
 
 }
